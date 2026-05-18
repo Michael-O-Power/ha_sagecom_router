@@ -4,6 +4,6 @@
   "codeowners": ["@Michael-O-Power"],
   "documentation": "https://github.com/Michael-O-Power/ha_sagecom_router",
   "iot_class": "local_polling",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "requirements": []
 }
