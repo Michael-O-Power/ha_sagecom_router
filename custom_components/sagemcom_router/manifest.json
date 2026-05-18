@@ -1,9 +1,10 @@
 {
   "domain": "sagemcom_router",
-  "name": "Sagemcom 5G Router",
+  "name": "Sagemcom F@st 5866T 5G Modem",
   "codeowners": ["@Michael-O-Power"],
   "documentation": "https://github.com/Michael-O-Power/ha_sagecom_router",
   "iot_class": "local_polling",
+  "config_flow": true,
   "version": "0.0.1",
   "requirements": []
 }
