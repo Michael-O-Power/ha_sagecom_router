@@ -1,0 +1,9 @@
+{
+  "domain": "sagemcom_router",
+  "name": "Sagemcom 5G Router",
+  "codeowners": ["@Michael-O-Power"],
+  "documentation": "https://github.com/Michael-O-Power/ha_sagecom_router",
+  "iot_class": "local_polling",
+  "version": "1.0.0",
+  "requirements": []
+}
