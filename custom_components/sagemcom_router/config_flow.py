@@ -34,68 +34,60 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 cookie_jar = aiohttp.CookieJar(unsafe=True)
                 
                 async with aiohttp.ClientSession(cookie_jar=cookie_jar) as session:
+                    # Pristine headers to completely spoof the browser environment
                     base_headers = {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
                         "Accept": "application/json, text/plain, */*",
-                        "Accept-Language": "en-US,en;q=0.9",
+                        "Accept-Language": "en-AU,en-US;q=0.9,en-GB;q=0.8,en;q=0.7",
                         "Origin": f"http://{host}",
                         "Referer": f"http://{host}/",
                     }
-                    
-                    session.cookie_jar.update_cookies({
-                        "modeSelected": "admin",
-                        "currentLanguage": "EN",
-                        "backgroundColor": "restgui-tpg-theme"
-                    }, base_url)
 
-                    # Step 1: Initialize baseline session
-                    await session.get(base_url, headers=base_headers)
-
-                    # Step 2: POST to login-params
+                    # Step 1: POST directly to login-params (mirroring clean login initialization)
                     params_url = f"http://{host}/api/v1/login-params"
                     salt = None
                     nonce = None
+                    bbox_id = None
 
                     headers_params = base_headers.copy()
                     headers_params["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+                    # Pass initial environmental state cookies manually
+                    headers_params["Cookie"] = "modeSelected=admin; backgroundColor=restgui-tpg-theme; currentLanguage=EN"
 
                     async with asyncio.timeout(5):
-                        async with session.post(params_url, data={"login": username}, headers=headers_params) as resp:
-                            try:
-                                json_data = await resp.json()
-                                if isinstance(json_data, dict):
-                                    salt = json_data.get("salt") or json_data.get("data", {}).get("salt")
-                                    nonce = json_data.get("nonce") or json_data.get("data", {}).get("nonce")
-                            except Exception:
-                                pass
-
-                            if not salt and "salt" in resp.cookies:
+                        async with session.post(
+                            params_url, 
+                            data=f"login={username}", 
+                            headers=headers_params,
+                            skip_auto_headers={"Cookie"}
+                        ) as resp:
+                            # Extract cryptographic context tokens directly from immediate response headers
+                            if "salt" in resp.cookies:
                                 salt = resp.cookies["salt"].value
-                            if not nonce and "nonce" in resp.cookies:
+                            if "nonce" in resp.cookies:
                                 nonce = resp.cookies["nonce"].value
+                            if "BBOX_ID" in resp.cookies:
+                                bbox_id = resp.cookies["BBOX_ID"].value
 
-                    # Fallback collection
+                    # Fallback to cookie jar if header parsing missed anything
                     jar_cookies = {k: m.value for k, m in session.cookie_jar.filter_cookies(base_url).items()}
                     if not salt: salt = jar_cookies.get("salt")
                     if not nonce: nonce = jar_cookies.get("nonce")
-                    bbox_id = jar_cookies.get("BBOX_ID")
+                    if not bbox_id: bbox_id = jar_cookies.get("BBOX_ID")
 
                     if not salt or not nonce:
                         _LOGGER.error("Handshake failed. Cryptographic tokens missing. Active Jar: %s", jar_cookies)
                         errors["base"] = "cannot_connect"
                     else:
-                        # Step 3: Cryptographic Signature
-                        # FIX: Scale down cnonce to a standard 9-digit safe integer to prevent router overflows
-                        cnonce = str(random.randint(100000000, 999999999))
+                        # Step 2: Cryptographic Signature Generation
+                        cnonce = f"{random.randint(1000000000000000, 9999999999999999)}000"
                         auth_key = self._calculate_auth_key(username, password, salt, nonce, cnonce)
 
-                        # Step 4: Final Authenticated Challenge
+                        # Step 3: Final Authenticated Challenge Setup
                         login_url = f"http://{host}/api/v1/login"
-                        payload = {
-                            "login": username,
-                            "auth_key": auth_key,
-                            "cnonce": cnonce
-                        }
+                        
+                        # Fix: Deliver payload as a raw, sequential form-encoded string
+                        payload_str = f"login={username}&auth_key={auth_key}&cnonce={cnonce}"
                         
                         cookie_parts = [
                             "modeSelected=admin",
@@ -114,13 +106,13 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         # ==================== LOGS REMAIN ACTIVE ====================
                         _LOGGER.warning("--- DEBUGGING SAGEMCOM OUTGOING REQUEST ---")
                         _LOGGER.warning("Target URL: %s", login_url)
-                        _LOGGER.warning("Outgoing Form Payload: %s", payload)
+                        _LOGGER.warning("Outgoing Form Payload String: %s", payload_str)
                         _LOGGER.warning("Outgoing Request Headers (MANUAL COOKIE): %s", headers_login)
                         # ============================================================
 
                         async with session.post(
                             login_url, 
-                            data=payload, 
+                            data=payload_str, 
                             headers=headers_login, 
                             skip_auto_headers={"Cookie"}
                         ) as login_resp:
