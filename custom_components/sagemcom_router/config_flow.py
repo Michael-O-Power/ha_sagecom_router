@@ -3,10 +3,10 @@ import hashlib
 import logging
 import random
 import voluptuous as vol
+import aiohttp  # Imported directly to configure an unsafe cookie jar
+from yarl import URL
 from homeassistant import config_entries
 from homeassistant.helpers import selector
-# Swapped to async_create_clientsession for an isolated cookie jar context
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,78 +30,95 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             password = user_input["password"]
 
             try:
-                # Create a standalone, pristine session instance
-                session = async_create_clientsession(self.hass)
-                headers = {
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "Origin": f"http://{host}",
-                    "Referer": f"http://{host}/"
-                }
+                base_url = URL(f"http://{host}/")
+                
+                # CRITICAL FIX: Instantiate a clean cookie jar that permits raw IP address cookies
+                cookie_jar = aiohttp.CookieJar(unsafe=True)
+                
+                async with aiohttp.ClientSession(cookie_jar=cookie_jar) as session:
+                    # Pre-populate the unsafe jar with the router's environmental defaults
+                    session.cookie_jar.update_cookies({
+                        "modeSelected": "admin",
+                        "currentLanguage": "EN",
+                        "backgroundColor": "restgui-tpg-theme"
+                    }, base_url)
 
-                # Step 1: Initialize baseline session
-                _LOGGER.debug("Initializing session cookies at http://%s/", host)
-                await session.get(f"http://{host}/")
-
-                # Step 2: POST to login-params
-                params_url = f"http://{host}/api/v1/login-params"
-                salt = None
-                nonce = None
-
-                async with asyncio.timeout(5):
-                    async with session.post(params_url, data={"login": username}, headers=headers) as resp:
-                        _LOGGER.debug("login-params response status: %s", resp.status)
-                        
-                        try:
-                            json_data = await resp.json()
-                            if isinstance(json_data, dict):
-                                salt = json_data.get("salt") or json_data.get("data", {}).get("salt")
-                                nonce = json_data.get("nonce") or json_data.get("data", {}).get("nonce")
-                        except Exception:
-                            pass
-
-                        if not salt and "salt" in resp.cookies:
-                            salt = resp.cookies["salt"].value
-                        if not nonce and "nonce" in resp.cookies:
-                            nonce = resp.cookies["nonce"].value
-
-                        if not salt or not nonce:
-                            jar_cookies = session.cookie_jar.filter_cookies(resp.url)
-                            if not salt and "salt" in jar_cookies:
-                                salt = jar_cookies["salt"].value
-                            if not nonce and "nonce" in jar_cookies:
-                                nonce = jar_cookies["nonce"].value
-
-                if not salt or not nonce:
-                    _LOGGER.error("Handshake failed. Missing cryptographic cookies.")
-                    errors["base"] = "cannot_connect"
-                else:
-                    _LOGGER.debug("Handshake success! Salt obtained, calculating auth token...")
-                    
-                    # Step 3: Cryptographic Signature
-                    cnonce = str(random.randint(1000000000000000000, 9999999999999999999))
-                    auth_key = self._calculate_auth_key(username, password, salt, nonce, cnonce)
-
-                    # Step 4: Final Authenticated Challenge
-                    login_url = f"http://{host}/api/v1/login"
-                    payload = {
-                        "login": username,
-                        "auth_key": auth_key,
-                        "cnonce": cnonce
+                    headers = {
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "Origin": f"http://{host}",
+                        "Referer": f"http://{host}/"
                     }
-                    
-                    async with session.post(login_url, data=payload, headers=headers) as login_resp:
-                        if login_resp.status in [200, 201]:
-                            return self.async_create_entry(
-                                title=f"Sagemcom F@st 5866T ({host})", data=user_input
-                            )
-                        else:
-                            # Dump the actual error details from the router body
-                            error_body = await login_resp.text()
-                            _LOGGER.error(
-                                "Authentication rejected by router status: %s. Response content: %s", 
-                                login_resp.status, error_body
-                            )
-                            errors["base"] = "invalid_auth"
+
+                    # Step 1: Initialize baseline session (captures BBOX_ID safely now!)
+                    _LOGGER.debug("Initializing session cookies at %s", base_url)
+                    await session.get(base_url)
+
+                    # Step 2: POST to login-params
+                    params_url = f"http://{host}/api/v1/login-params"
+                    salt = None
+                    nonce = None
+
+                    async with asyncio.timeout(5):
+                        async with session.post(params_url, data={"login": username}, headers=headers) as resp:
+                            try:
+                                json_data = await resp.json()
+                                if isinstance(json_data, dict):
+                                    salt = json_data.get("salt") or json_data.get("data", {}).get("salt")
+                                    nonce = json_data.get("nonce") or json_data.get("data", {}).get("nonce")
+                            except Exception:
+                                pass
+
+                            if not salt and "salt" in resp.cookies:
+                                salt = resp.cookies["salt"].value
+                            if not nonce and "nonce" in resp.cookies:
+                                nonce = resp.cookies["nonce"].value
+
+                    if not salt or not nonce:
+                        # Grab whatever jar cookies exist for debugging
+                        jar_cookies = {c.key: c.value for c in session.cookie_jar.filter_cookies(base_url)}
+                        _LOGGER.error("Handshake failed. Cryptographic tokens missing. Active Jar: %s", jar_cookies)
+                        errors["base"] = "cannot_connect"
+                    else:
+                        # Step 3: Cryptographic Signature
+                        cnonce = str(random.randint(1000000000000000000, 9999999999999999999))
+                        auth_key = self._calculate_auth_key(username, password, salt, nonce, cnonce)
+
+                        # Step 4: Final Authenticated Challenge
+                        login_url = f"http://{host}/api/v1/login"
+                        payload = {
+                            "login": username,
+                            "auth_key": auth_key,
+                            "cnonce": cnonce
+                        }
+                        
+                        # Add salt & nonce to our unsafe cookie jar container
+                        session.cookie_jar.update_cookies({
+                            "salt": salt,
+                            "nonce": nonce
+                        }, base_url)
+                        
+                        # ==================== EXPLICIT OUTGOING LOGS ====================
+                        active_cookies = {c.key: c.value for c in session.cookie_jar.filter_cookies(base_url)}
+                        _LOGGER.warning("--- DEBUGGING SAGEMCOM OUTGOING REQUEST ---")
+                        _LOGGER.warning("Target URL: %s", login_url)
+                        _LOGGER.warning("Outgoing Form Payload: %s", payload)
+                        _LOGGER.warning("Active Session Jar Cookies: %s", active_cookies)
+                        _LOGGER.warning("Outgoing Request Headers: %s", headers)
+                        # ================================================================
+
+                        async with session.post(login_url, data=payload, headers=headers) as login_resp:
+                            if login_resp.status in [200, 201]:
+                                _LOGGER.info("Successfully authenticated with Sagemcom Router!")
+                                return self.async_create_entry(
+                                    title=f"Sagemcom F@st 5866T ({host})", data=user_input
+                                )
+                            else:
+                                error_body = await login_resp.text()
+                                _LOGGER.error(
+                                    "Authentication rejected by router status: %s. Response content: %s", 
+                                    login_resp.status, error_body
+                                )
+                                errors["base"] = "invalid_auth"
 
             except Exception as err:
                 _LOGGER.exception("Unexpected connection exception encountered: %s", err)
