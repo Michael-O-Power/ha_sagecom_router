@@ -3,7 +3,7 @@ import hashlib
 import logging
 import random
 import voluptuous as vol
-import aiohttp  # Imported directly to configure an unsafe cookie jar
+import aiohttp
 from yarl import URL
 from homeassistant import config_entries
 from homeassistant.helpers import selector
@@ -31,35 +31,36 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 base_url = URL(f"http://{host}/")
-                
-                # CRITICAL FIX: Instantiate a clean cookie jar that permits raw IP address cookies
                 cookie_jar = aiohttp.CookieJar(unsafe=True)
                 
                 async with aiohttp.ClientSession(cookie_jar=cookie_jar) as session:
-                    # Pre-populate the unsafe jar with the router's environmental defaults
+                    base_headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Accept": "application/json, text/plain, */*",
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Origin": f"http://{host}",
+                        "Referer": f"http://{host}/",
+                    }
+                    
                     session.cookie_jar.update_cookies({
                         "modeSelected": "admin",
                         "currentLanguage": "EN",
                         "backgroundColor": "restgui-tpg-theme"
                     }, base_url)
 
-                    headers = {
-                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                        "Origin": f"http://{host}",
-                        "Referer": f"http://{host}/"
-                    }
-
-                    # Step 1: Initialize baseline session (captures BBOX_ID safely now!)
-                    _LOGGER.debug("Initializing session cookies at %s", base_url)
-                    await session.get(base_url)
+                    # Step 1: Initialize baseline session
+                    await session.get(base_url, headers=base_headers)
 
                     # Step 2: POST to login-params
                     params_url = f"http://{host}/api/v1/login-params"
                     salt = None
                     nonce = None
 
+                    headers_params = base_headers.copy()
+                    headers_params["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+
                     async with asyncio.timeout(5):
-                        async with session.post(params_url, data={"login": username}, headers=headers) as resp:
+                        async with session.post(params_url, data={"login": username}, headers=headers_params) as resp:
                             try:
                                 json_data = await resp.json()
                                 if isinstance(json_data, dict):
@@ -73,14 +74,19 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             if not nonce and "nonce" in resp.cookies:
                                 nonce = resp.cookies["nonce"].value
 
+                    # Fallback collection
+                    jar_cookies = {k: m.value for k, m in session.cookie_jar.filter_cookies(base_url).items()}
+                    if not salt: salt = jar_cookies.get("salt")
+                    if not nonce: nonce = jar_cookies.get("nonce")
+                    bbox_id = jar_cookies.get("BBOX_ID")
+
                     if not salt or not nonce:
-                        # Grab whatever jar cookies exist for debugging
-                        jar_cookies = {c.key: c.value for c in session.cookie_jar.filter_cookies(base_url)}
                         _LOGGER.error("Handshake failed. Cryptographic tokens missing. Active Jar: %s", jar_cookies)
                         errors["base"] = "cannot_connect"
                     else:
                         # Step 3: Cryptographic Signature
-                        cnonce = str(random.randint(1000000000000000000, 9999999999999999999))
+                        # FIX: Scale down cnonce to a standard 9-digit safe integer to prevent router overflows
+                        cnonce = str(random.randint(100000000, 999999999))
                         auth_key = self._calculate_auth_key(username, password, salt, nonce, cnonce)
 
                         # Step 4: Final Authenticated Challenge
@@ -91,22 +97,33 @@ class SagemcomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             "cnonce": cnonce
                         }
                         
-                        # Add salt & nonce to our unsafe cookie jar container
-                        session.cookie_jar.update_cookies({
-                            "salt": salt,
-                            "nonce": nonce
-                        }, base_url)
+                        cookie_parts = [
+                            "modeSelected=admin",
+                            f"salt={salt}",
+                            "backgroundColor=restgui-tpg-theme",
+                            "currentLanguage=EN",
+                            f"nonce={nonce}"
+                        ]
+                        if bbox_id:
+                            cookie_parts.append(f"BBOX_ID={bbox_id}")
                         
-                        # ==================== EXPLICIT OUTGOING LOGS ====================
-                        active_cookies = {c.key: c.value for c in session.cookie_jar.filter_cookies(base_url)}
+                        headers_login = base_headers.copy()
+                        headers_login["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+                        headers_login["Cookie"] = "; ".join(cookie_parts)
+
+                        # ==================== LOGS REMAIN ACTIVE ====================
                         _LOGGER.warning("--- DEBUGGING SAGEMCOM OUTGOING REQUEST ---")
                         _LOGGER.warning("Target URL: %s", login_url)
                         _LOGGER.warning("Outgoing Form Payload: %s", payload)
-                        _LOGGER.warning("Active Session Jar Cookies: %s", active_cookies)
-                        _LOGGER.warning("Outgoing Request Headers: %s", headers)
-                        # ================================================================
+                        _LOGGER.warning("Outgoing Request Headers (MANUAL COOKIE): %s", headers_login)
+                        # ============================================================
 
-                        async with session.post(login_url, data=payload, headers=headers) as login_resp:
+                        async with session.post(
+                            login_url, 
+                            data=payload, 
+                            headers=headers_login, 
+                            skip_auto_headers={"Cookie"}
+                        ) as login_resp:
                             if login_resp.status in [200, 201]:
                                 _LOGGER.info("Successfully authenticated with Sagemcom Router!")
                                 return self.async_create_entry(
