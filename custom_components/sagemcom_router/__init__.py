@@ -24,7 +24,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 # --- PURE PYTHON CRYPTO ENGINE ---
 def _pure_sha512_crypt(key: str, salt: str) -> str:
-    """Pure python implementation of Unix SHA512 crypt."""
     key_b = key.encode('utf-8')
     salt_b = salt.encode('utf-8')
     ctx_a = hashlib.sha512(key_b + salt_b)
@@ -91,7 +90,6 @@ def _calculate_auth_key(username, password, salt, nonce, cnonce):
     auth_string = f"{g}:0:{cnonce}"
     return hashlib.sha512(auth_string.encode("utf-8")).hexdigest()
 
-
 class SagemcomDataCoordinator(DataUpdateCoordinator):
     """Class to manage continuous authentication and data fetching."""
 
@@ -119,7 +117,6 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             "Connection": "keep-alive"
         }
         
-        # Newly mapped endpoints from the F@st 5866T config.js trace
         self.endpoints = {
             "device": f"{self.base_url}/device",
             "network_type": f"{self.base_url}/cellular/network_type",
@@ -131,7 +128,8 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             "interface_4g": f"{self.base_url}/cellular/interface",
             "lan_stats": f"{self.base_url}/lan/stats",
             "wifi_24_stats": f"{self.base_url}/wireless/24/stats",
-            "wifi_5_stats": f"{self.base_url}/wireless/5/stats"
+            "wifi_5_stats": f"{self.base_url}/wireless/5/stats",
+            "hosts": f"{self.base_url}/hosts"
         }
 
     async def _async_login(self):
