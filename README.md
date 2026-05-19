@@ -32,3 +32,24 @@ If you prefer to install without HACS, you can do it via terminal/SSH.
    ```bash
    mkdir custom_components
    cd custom_components
+   ```
+4. Clone this repository:
+   ```bash
+   git clone [https://github.com/Michael-O-Power/ha_sagemcom_router.git](https://github.com/Michael-O-Power/ha_sagemcom_router.git)
+   ```
+5. Move the internal `sagemcom_router` folder directly into `custom_components`. Your final folder structure should look exactly like this:
+   `config/custom_components/sagemcom_router/`
+6. **Restart Home Assistant**.
+
+## Configuration
+
+1. In Home Assistant, go to **Settings** > **Devices & Services**.
+2. Click **Add Integration** in the bottom right corner.
+3. Search for **Sagemcom F@st 5866T**.
+4. Enter the following details:
+   * **Host:** The IP address of your modem (usually `192.168.1.1`)
+   * **Username:** The login username (usually `admin`)
+   * **Password:** The exact password used to log into the modem's web interface. *(Note: If you use a password manager to log in via your browser, ensure you copy the exact string it is auto-filling).*
+5. Click **Submit**.
+
+Once authenticated, your sensors will begin pulling data within 60 seconds!
