@@ -16,13 +16,14 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor"]
+# Load all three logical tracking platforms
+PLATFORMS = ["sensor", "switch"]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Sagemcom Router component (Legacy Hook)."""
     return True
 
-# --- PURE PYTHON CRYPTO ENGINE ---
+# --- PURE PYTHON CRPTO handshakes ---
 def _pure_sha512_crypt(key: str, salt: str) -> str:
     key_b = key.encode('utf-8')
     salt_b = salt.encode('utf-8')
@@ -90,6 +91,7 @@ def _calculate_auth_key(username, password, salt, nonce, cnonce):
     auth_string = f"{g}:0:{cnonce}"
     return hashlib.sha512(auth_string.encode("utf-8")).hexdigest()
 
+
 class SagemcomDataCoordinator(DataUpdateCoordinator):
     """Class to manage continuous authentication and data fetching."""
 
@@ -109,9 +111,9 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
         self._logged_in = False
         self._active_cookie = ""
         self._base_headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-AU,en-US;q=0.9,en-GB;q=0.8,en;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9",
             "Origin": f"http://{self.host}",
             "Referer": f"http://{self.host}/",
             "Connection": "keep-alive"
@@ -127,9 +129,12 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             "interface_5g": f"{self.base_url}/cellular/interface_5g",
             "interface_4g": f"{self.base_url}/cellular/interface",
             "lan_stats": f"{self.base_url}/lan/stats",
-            "wifi_24_stats": f"{self.base_url}/wireless/24/stats",
-            "wifi_5_stats": f"{self.base_url}/wireless/5/stats",
-            "hosts": f"{self.base_url}/hosts"
+            "hosts": f"{self.base_url}/hosts",
+            # Expanded structural Wi-Fi profile maps
+            "wifi_24": f"{self.base_url}/wireless/24",
+            "wifi_5": f"{self.base_url}/wireless/5",
+            "wifi_guest24": f"{self.base_url}/wireless/guest24",
+            "wifi_guest5": f"{self.base_url}/wireless/guest5"
         }
 
     async def _async_login(self):
@@ -144,10 +149,7 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
         c_params = ["modeSelected=admin", f"salt={init_salt}", "backgroundColor=restgui-tpg-theme", "currentLanguage=EN", f"nonce={init_nonce}"]
         headers_params["Cookie"] = "; ".join(c_params)
 
-        salt = None
-        nonce = None
-        bbox_id = None
-
+        salt, nonce, bbox_id = None, None, None
         async with asyncio.timeout(5):
             async with self.session.post(params_url, data={"login": self.username}, headers=headers_params, skip_auto_headers={"Cookie"}) as resp:
                 resp.raise_for_status()
@@ -186,6 +188,24 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             self._active_cookie = "; ".join(cookie_parts)
             self._logged_in = True
 
+    async def async_post_command(self, url_path: str, payload: dict):
+        """Execute a state modification action against the router API."""
+        if not self._logged_in:
+            await self._async_login()
+        
+        headers = self._base_headers.copy()
+        headers["Cookie"] = self._active_cookie
+        full_url = f"{self.base_url}/{url_path.lstrip('/')}"
+        
+        async with self.session.post(full_url, json=payload, headers=headers, skip_auto_headers={"Cookie"}) as resp:
+            if resp.status in [401, 403]:
+                await self._async_login()
+                headers["Cookie"] = self._active_cookie
+                async with self.session.post(full_url, json=payload, headers=headers, skip_auto_headers={"Cookie"}) as retry_resp:
+                    retry_resp.raise_for_status()
+            else:
+                resp.raise_for_status()
+
     async def _async_update_data(self):
         """Fetch data from API endpoints."""
         if not self._logged_in:
@@ -199,7 +219,6 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
                 
                 async with self.session.get(url, headers=headers, skip_auto_headers={"Cookie"}) as response:
                     if response.status in [401, 403]:
-                        _LOGGER.info("Session expired. Re-authenticating...")
                         await self._async_login()
                         headers["Cookie"] = self._active_cookie
                         async with self.session.get(url, headers=headers, skip_auto_headers={"Cookie"}) as retry_resp:

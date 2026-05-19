@@ -1,10 +1,10 @@
+"""Sensor platform for the Sagemcom F@st 5866T 5G Modem integration."""
 import logging
 
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorDeviceClass,
     SensorStateClass,
-    SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -20,8 +20,9 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+
 def safe_get(data, path, default=None):
-    """Safely travel down highly nested list/dict structures."""
+    """Safely travel down highly nested list/dict structures from the Sagemcom API."""
     current = data
     for key in path:
         if isinstance(current, list):
@@ -33,225 +34,61 @@ def safe_get(data, path, default=None):
             current = current.get(key)
         else:
             return default
+            
         if current is None:
             return default
+            
     return current
+
+
+# ==========================================
+# SENSOR DEFINITIONS
+# ==========================================
 
 SENSOR_TYPES = (
     # --- CORE SYSTEM INFO ---
-    {
-        "key": "model_name",
-        "name": "Model Name",
-        "path": ["device", 0, "device", "modelname"],
-        "icon": "mdi:router"
-    },
-    {
-        "key": "software_version",
-        "name": "Firmware Version",
-        "path": ["device", 0, "device", "main", "version"],
-        "icon": "mdi:package-up"
-    },
-    {
-        "key": "uptime",
-        "name": "System Uptime (s)",
-        "path": ["device", 0, "device", "uptime"],
-        "device_class": SensorDeviceClass.DURATION,
-        "native_unit_of_measurement": UnitOfTime.SECONDS,
-        "state_class": SensorStateClass.TOTAL_INCREASING
-    },
-    {
-        "key": "uptime_formatted",
-        "name": "System Uptime",
-        "path": ["device", 0, "device", "uptime"],
-        "icon": "mdi:clock-check-outline"
-    },
-    {
-        "key": "boot_count",
-        "name": "Boot Counter",
-        "path": ["device", 0, "device", "numberofboots"],
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:counter"
-    },
+    {"key": "model_name", "name": "Model Name", "path": ["device", 0, "device", "modelname"], "icon": "mdi:router"},
+    {"key": "software_version", "name": "Firmware Version", "path": ["device", 0, "device", "main", "version"], "icon": "mdi:package-up"},
+    {"key": "uptime", "name": "System Uptime (s)", "path": ["device", 0, "device", "uptime"], "device_class": SensorDeviceClass.DURATION, "native_unit_of_measurement": UnitOfTime.SECONDS, "state_class": SensorStateClass.TOTAL_INCREASING},
+    {"key": "uptime_formatted", "name": "System Uptime", "path": ["device", 0, "device", "uptime"], "icon": "mdi:clock-check-outline"},
+    {"key": "boot_count", "name": "Boot Counter", "path": ["device", 0, "device", "numberofboots"], "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:counter"},
+    
     # --- WAN & NETWORK IDENTIFIERS ---
-    {
-        "key": "wan_status",
-        "name": "WAN Link Status",
-        "path": ["wan", "status"],
-        "icon": "mdi:wan"
-    },
-    {
-        "key": "network_type",
-        "name": "Cellular Generation",
-        "path": ["network_type", "cellular", "network_type"],
-        "icon": "mdi:signal-cellular-5g"
-    },
-    {
-        "key": "provider",
-        "name": "Network Carrier",
-        "path": ["provider", "cellular", "provider"],
-        "icon": "mdi:antenna"
-    },
-    {
-        "key": "sim_status",
-        "name": "SIM Status",
-        "path": ["sim_status", 0, "cellular", "sim_status_extended"],
-        "icon": "mdi:sim"
-    },
+    {"key": "wan_status", "name": "WAN Link Status", "path": ["wan", "status"], "icon": "mdi:wan"},
+    {"key": "network_type", "name": "Cellular Generation", "path": ["network_type", "cellular", "network_type"], "icon": "mdi:signal-cellular-5g"},
+    {"key": "provider", "name": "Network Carrier", "path": ["provider", "cellular", "provider"], "icon": "mdi:antenna"},
+    {"key": "sim_status", "name": "SIM Status", "path": ["sim_status", 0, "cellular", "sim_status_extended"], "icon": "mdi:sim"},
+    
     # --- NETWORK CLIENT COUNTERS ---
-    {
-        "key": "clients_ethernet",
-        "name": "Active Ethernet Clients",
-        "path": ["hosts", 0, "hosts", "list"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:lan-connect"
-    },
-    {
-        "key": "clients_wifi",
-        "name": "Active Wi-Fi Clients",
-        "path": ["hosts", 0, "hosts", "list"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:wifi-star"
-    },
+    {"key": "clients_ethernet", "name": "Active Ethernet Clients", "path": ["hosts", 0, "hosts", "list"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:lan-connect"},
+    {"key": "clients_wifi", "name": "Active Wi-Fi Clients", "path": ["hosts", 0, "hosts", "list"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:wifi-star"},
+    
     # --- CELLULAR DATA TRAFFIC METERING ---
-    {
-        "key": "session_duration",
-        "name": "Cellular Session Duration",
-        "path": ["session", 0, "cellular", "session", "duration"],
-        "device_class": SensorDeviceClass.DURATION,
-        "native_unit_of_measurement": UnitOfTime.HOURS,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:clock-outline"
-    },
-    {
-        "key": "bytes_received",
-        "name": "Mobile Data Downloaded",
-        "path": ["session", 0, "cellular", "session", "data", "received"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:download"
-    },
-    {
-        "key": "data_received_gb",
-        "name": "Data Received",
-        "path": ["session", 0, "cellular", "session", "data", "received"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.GIGABYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:download-network"
-    },
-    {
-        "key": "bytes_sent",
-        "name": "Mobile Data Uploaded",
-        "path": ["session", 0, "cellular", "session", "data", "sent"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:upload"
-    },
-    {
-        "key": "data_sent_gb",
-        "name": "Data Sent",
-        "path": ["session", 0, "cellular", "session", "data", "sent"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.GIGABYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING,
-        "icon": "mdi:upload-network"
-    },
+    {"key": "session_duration", "name": "Cellular Session Duration", "path": ["session", 0, "cellular", "session", "duration"], "device_class": SensorDeviceClass.DURATION, "native_unit_of_measurement": UnitOfTime.HOURS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:clock-outline"},
+    {"key": "bytes_received", "name": "Mobile Data Downloaded", "path": ["session", 0, "cellular", "session", "data", "received"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.BYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:download"},
+    {"key": "data_received_gb", "name": "Data Received", "path": ["session", 0, "cellular", "session", "data", "received"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.GIGABYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:download-network"},
+    {"key": "bytes_sent", "name": "Mobile Data Uploaded", "path": ["session", 0, "cellular", "session", "data", "sent"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.BYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:upload"},
+    {"key": "data_sent_gb", "name": "Data Sent", "path": ["session", 0, "cellular", "session", "data", "sent"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.GIGABYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:upload-network"},
+    
     # --- 4G LTE TELEMETRY ---
-    {
-        "key": "4g_rsrp",
-        "name": "4G Signal Strength (RSRP)",
-        "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"],
-        "device_class": SensorDeviceClass.SIGNAL_STRENGTH,
-        "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-3"
-    },
-    {
-        "key": "4g_rsrq",
-        "name": "4G Signal Quality (RSRQ)",
-        "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrq"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-outline"
-    },
-    {
-        "key": "4g_sinr",
-        "name": "4G Signal:Noise Ratio (SINR)",
-        "path": ["interface_4g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-outline"
-    },
+    {"key": "4g_rsrp", "name": "4G Signal Strength (RSRP)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "4g_rsrq", "name": "4G Signal Quality (RSRQ)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
+    {"key": "4g_sinr", "name": "4G Signal:Noise Ratio (SINR)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
+    
     # --- 5G TELEMETRY ---
-    {
-        "key": "5g_rsrp",
-        "name": "5G Signal Strength (RSRP)",
-        "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"],
-        "device_class": SensorDeviceClass.SIGNAL_STRENGTH,
-        "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-3"
-    },
-    {
-        "key": "5g_rsrq",
-        "name": "5G Signal Quality (RSRQ)",
-        "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrq"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-outline"
-    },
-    {
-        "key": "5g_sinr",
-        "name": "5G Signal:Noise Ratio (SINR)",
-        "path": ["interface_5g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"],
-        "state_class": SensorStateClass.MEASUREMENT,
-        "icon": "mdi:signal-cellular-outline"
-    },
-    {
-        "key": "5g_band",
-        "name": "5G Band",
-        "path": ["interface_5g", 0, "cellular", "interfaces", 0, "bandinfo"],
-        "icon": "mdi:radio-tower"
-    },
-    # --- WIRELESS TRAFFIC COUNTERS ---
-    {
-        "key": "wifi_24_rx",
-        "name": "Wi-Fi 2.4G Received Traffic",
-        "path": ["wifi_24_stats", 0, "wireless", "ssid", "stats", "rx", "bytes"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING
-    },
-    {
-        "key": "wifi_24_tx",
-        "name": "Wi-Fi 2.4G Transmitted Traffic",
-        "path": ["wifi_24_stats", 0, "wireless", "ssid", "stats", "tx", "bytes"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING
-    },
-    {
-        "key": "wifi_5_rx",
-        "name": "Wi-Fi 5G Received Traffic",
-        "path": ["wifi_5_stats", 0, "wireless", "ssid", "stats", "rx", "bytes"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING
-    },
-    {
-        "key": "wifi_5_tx",
-        "name": "Wi-Fi 5G Transmitted Traffic",
-        "path": ["wifi_5_stats", 0, "wireless", "ssid", "stats", "tx", "bytes"],
-        "device_class": SensorDeviceClass.DATA_SIZE,
-        "native_unit_of_measurement": UnitOfInformation.BYTES,
-        "state_class": SensorStateClass.TOTAL_INCREASING
-    },
+    {"key": "5g_rsrp", "name": "5G Signal Strength (RSRP)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "5g_rsrq", "name": "5G Signal Quality (RSRQ)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
+    {"key": "5g_sinr", "name": "5G Signal:Noise Ratio (SINR)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
+    {"key": "5g_band", "name": "5G Band", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "bandinfo"], "icon": "mdi:radio-tower"},
 )
 
-# Granular hardware metrics exactly mapping the router's nested JSON
+# NOTE: 'packets' and 'errors' strictly avoid the DATA_SIZE device class to prevent Home Assistant ValueErrors.
+# Includes the new 'status' Connection Status sensor at the top.
 PORT_METRIC_DEFINITIONS = [
+    {"key": "status", "suffix": "Connection Status", "icon": "mdi:ethernet-cable"},
     {"key": "curbitrate", "suffix": "Link Speed", "icon": "mdi:speedometer", "unit": "Mbps"},
-    {"dir": "tx", "key": "packets", "suffix": "Packets Sent", "icon": "mdi:upload", "class": SensorDeviceClass.DATA_SIZE, "unit": "packets"},
-    {"dir": "rx", "key": "packets", "suffix": "Packets Received", "icon": "mdi:download", "class": SensorDeviceClass.DATA_SIZE, "unit": "packets"},
+    {"dir": "tx", "key": "packets", "suffix": "Packets Sent", "icon": "mdi:upload", "unit": "packets"},
+    {"dir": "rx", "key": "packets", "suffix": "Packets Received", "icon": "mdi:download", "unit": "packets"},
     {"dir": "tx", "key": "bytes", "suffix": "Bytes Sent", "icon": "mdi:upload", "class": SensorDeviceClass.DATA_SIZE, "unit": UnitOfInformation.BYTES},
     {"dir": "rx", "key": "bytes", "suffix": "Bytes Received", "icon": "mdi:download", "class": SensorDeviceClass.DATA_SIZE, "unit": UnitOfInformation.BYTES},
     {"dir": "tx", "key": "packetserrors", "suffix": "Errors Sent", "icon": "mdi:alert-outline", "unit": "errors"},
@@ -266,15 +103,43 @@ PORT_METRIC_DEFINITIONS = [
     {"dir": "rx", "key": "broadcastpackets", "suffix": "Broadcast Packets Received", "icon": "mdi:bullhorn-variant", "unit": "packets"},
 ]
 
+# PRIMARY WI-FI includes hardware radio specifics
+WIFI_PRIMARY_DEFS = [
+    {"key": "ssid", "name": "SSID Name", "icon": "mdi:wifi-marker", "path_end": ["wireless", "ssid", "#BAND#", "id"]},
+    {"key": "passphrase", "name": "Passphrase", "icon": "mdi:key-variant", "path_end": ["wireless", "ssid", "#BAND#", "security", "passphrase"]},
+    {"key": "security", "name": "Security Type", "icon": "mdi:shield-lock-outline", "path_end": ["wireless", "ssid", "#BAND#", "security", "protocol"]},
+    {"key": "status", "name": "Status", "icon": "mdi:check-circle-outline", "path_end": ["wireless", "ssid", "#BAND#", "ssid_status"]},
+    {"key": "channel", "name": "Current Channel", "icon": "mdi:ray-start-arrow", "path_end": ["wireless", "radio", "channel"]},
+    {"key": "bandwidth", "name": "Bandwidth", "icon": "mdi:arrow-expand-horizontal", "path_end": ["wireless", "radio", "curr_oper_chan_bw"]},
+    {"key": "standard", "name": "Wireless Mode", "icon": "mdi:wifi-cog", "path_end": ["wireless", "radio", "standard"]},
+]
+
+# GUEST WI-FI uses the flat 'guestX' path structure without deep folders
+WIFI_GUEST_DEFS = [
+    {"key": "ssid", "name": "SSID Name", "icon": "mdi:wifi-marker", "path_end": ["guest#BAND#", "ssid"]},
+    {"key": "passphrase", "name": "Passphrase", "icon": "mdi:key-variant", "path_end": ["guest#BAND#", "passphrase"]},
+    {"key": "security", "name": "Security Type", "icon": "mdi:shield-lock-outline", "path_end": ["guest#BAND#", "security"]},
+    {"key": "status", "name": "Status", "icon": "mdi:check-circle-outline", "path_end": ["guest#BAND#", "ssid_status"]},
+]
+
+
+# ==========================================
+# SETUP PLATFORM
+# ==========================================
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
     """Set up platform entities based on parsed layout descriptors."""
     domain_data = hass.data[DOMAIN][entry.entry_id]
     coordinator = domain_data["coordinator"]
     host = domain_data["host"]
     
-    entities = [SagemcomRouterSensor(coordinator, description, entry.entry_id, host) for description in SENSOR_TYPES]
-    
-    # Spawn ETH0, ETH1, ETH2 as Independent Hardware Devices
+    entities = []
+
+    # 1. Spawn Core Router Sensors
+    for description in SENSOR_TYPES:
+        entities.append(SagemcomRouterSensor(coordinator, description, entry.entry_id, host))
+
+    # 2. Spawn ETH0, ETH1, ETH2
     if coordinator.data and "lan_stats" in coordinator.data:
         interfaces = safe_get(coordinator.data, ["lan_stats", 0, "lan", "interfaces"], [])
         for idx, iface in enumerate(interfaces):
@@ -282,12 +147,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             for metric in PORT_METRIC_DEFINITIONS:
                 entities.append(SagemcomEthernetPortSensor(coordinator, entry.entry_id, host, idx, port_label, metric))
 
-    # Spawn Connected Clients as Independent Devices (Adds MAC address sensing)
+    # 3. Add Primary and Guest Wifi Networks
+    networks_map = [
+        {
+            "device_id": "primary", 
+            "name": "Primary Wi-Fi Network", 
+            "defs": WIFI_PRIMARY_DEFS,
+            "bands": [("wifi_24", "24", "2.4GHz"), ("wifi_5", "5", "5GHz")]
+        },
+        {
+            "device_id": "guest", 
+            "name": "Guest Wi-Fi Network", 
+            "defs": WIFI_GUEST_DEFS,
+            "bands": [("wifi_guest24", "24", "2.4GHz"), ("wifi_guest5", "5", "5GHz")]
+        }
+    ]
+
+    for net in networks_map:
+        for coord_key, band_id, label in net["bands"]:
+            for definition in net["defs"]:
+                entities.append(SagemcomWiFiSensor(coordinator, entry.entry_id, net["device_id"], net["name"], coord_key, band_id, label, definition))
+
+    # 4. Spawn Connected Clients
     if coordinator.data and "hosts" in coordinator.data:
         clients = safe_get(coordinator.data, ["hosts", 0, "hosts", "list"], [])
         for client in clients:
             mac = client.get("macaddress")
-            if not mac or mac == "unknown":
+            if not mac or mac == "unknown": 
                 continue
                 
             hostname = client.get("hostname") or f"Device-{mac[-5:].replace(':', '')}"
@@ -297,49 +183,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             entities.append(SagemcomClientSensor(coordinator, entry.entry_id, mac, hostname, "macaddress", "MAC Address", "mdi:network-outline"))
             
             if client.get("link") == "Ethernet":
-                entities.append(SagemcomClientSensor(coordinator, entry.entry_id, mac, hostname, "speed", "Link Speed", "mdi:ethernet-cable", "Mbps"))
+                entities.append(SagemcomClientSensor(coordinator, entry.entry_id, mac, hostname, "speed", "Link Speed", "mdi:speedometer", "Mbps"))
             else:
                 entities.append(SagemcomClientSensor(coordinator, entry.entry_id, mac, hostname, "rssi", "Signal Strength", "mdi:wifi", "dBm"))
 
     async_add_entities(entities)
 
 
+# ==========================================
+# ENTITY CLASSES
+# ==========================================
+
 class SagemcomRouterSensor(CoordinatorEntity, SensorEntity):
-    """Core tracking properties representing logical device fields."""
     def __init__(self, coordinator, description, entry_id, host):
         super().__init__(coordinator)
         self._description = description
-        
         self._attr_unique_id = f"sagemcom_{host}_{description['key']}"
         self._attr_name = f"{description['name']}"
         self._attr_device_class = description.get("device_class")
         self._attr_native_unit_of_measurement = description.get("native_unit_of_measurement")
         self._attr_state_class = description.get("state_class")
         self._attr_icon = description.get("icon")
-        
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": "Sagemcom F@st 5866T 5G Modem",
-            "manufacturer": "Sagemcom",
-            "model": "F@st 5866T",
-            "configuration_url": f"http://{host}",
+            "identifiers": {(DOMAIN, entry_id)}, 
+            "name": "Sagemcom F@st 5866T 5G Modem", 
+            "manufacturer": "Sagemcom", 
+            "model": "F@st 5866T", 
+            "configuration_url": f"http://{host}"
         }
 
     @property
     def native_value(self):
-        """Derive the type-casted tracking value using structural dictionary layout keys."""
-        if not self.coordinator.data:
+        if not self.coordinator.data: 
             return None
             
         raw_val = safe_get(self.coordinator.data, self._description["path"])
-        
+            
         if self._description["key"] == "clients_ethernet" and isinstance(raw_val, list):
             return sum(1 for c in raw_val if c.get("active") and c.get("link") == "Ethernet")
             
         if self._description["key"] == "clients_wifi" and isinstance(raw_val, list):
             return sum(1 for c in raw_val if c.get("active") and c.get("link") != "Ethernet")
-        
-        if raw_val is None or raw_val == "":
+            
+        if raw_val is None or raw_val == "": 
             return None
             
         if self._description["key"] == "uptime_formatted":
@@ -361,23 +247,21 @@ class SagemcomRouterSensor(CoordinatorEntity, SensorEntity):
 
 
 class SagemcomEthernetPortSensor(CoordinatorEntity, SensorEntity):
-    """Spawns physical LAN ports as independent Hardware Devices, handling Disconnected states securely."""
     def __init__(self, coordinator, entry_id, host, index, port_name, metric_def):
         super().__init__(coordinator)
         self._index = index
         self._port_name = port_name
         self._metric_key = metric_def["key"]
         self._metric_def = metric_def
-        
-        self._attr_unique_id = f"sagemcom_{host}_lan_{port_name}_{self._metric_key}"
+        dir_key = metric_def.get("dir", "")
+        uid_suffix = f"{dir_key}_{self._metric_key}" if dir_key else self._metric_key
+        self._attr_unique_id = f"sagemcom_{host}_lan_{port_name}_{uid_suffix}"
         self._attr_name = f"LAN Port {port_name.upper()} {metric_def['suffix']}"
         self._attr_icon = metric_def["icon"]
-        
-        if "class" in metric_def:
+        if "class" in metric_def: 
             self._attr_device_class = metric_def["class"]
-        if "unit" in metric_def:
+        if "unit" in metric_def: 
             self._attr_native_unit_of_measurement = metric_def["unit"]
-            
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_lan_{port_name}")},
             name=f"LAN Port {port_name.upper()}",
@@ -387,17 +271,18 @@ class SagemcomEthernetPortSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Parse raw values adaptive to nested trees, returning None (Unavailable) if cable unplugged."""
-        if not self.coordinator.data:
+        if not self.coordinator.data: 
             return None
             
         base_path = ["lan_stats", 0, "lan", "interfaces", self._index]
-        status = safe_get(self.coordinator.data, base_path + ["status"])
+        status_val = safe_get(self.coordinator.data, base_path + ["status"])
         
-        if status != "Up":
-            if self._metric_key == "curbitrate":
-                return "Disconnected"
-            # Return None to force 'Unavailable' in the UI so numerical graphs don't crash to 0
+        # 1. Connection Status text output
+        if self._metric_key == "status":
+            return "Connected" if status_val == "Up" else "Disconnected"
+            
+        # 2. Prevent numerical graphs from crashing when unplugged
+        if status_val != "Up":
             return None
             
         if self._metric_key == "curbitrate":
@@ -407,26 +292,54 @@ class SagemcomEthernetPortSensor(CoordinatorEntity, SensorEntity):
         dir_key = self._metric_def.get("dir")
         if dir_key:
             val = safe_get(self.coordinator.data, base_path + [dir_key, self._metric_key])
-            if val is not None and str(val).strip() != "":
-                # Sagemcom 32-bit int rollover bug fix: force abs() value
+            if val is not None and str(val).strip() != "": 
                 return abs(int(val))
                 
         return 0
 
 
+class SagemcomWiFiSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, entry_id, device_id, device_name, coord_key, band_id, band_label, definition):
+        super().__init__(coordinator)
+        self._coord_key = coord_key
+        self._definition = definition
+        self._band_id = band_id
+        self._clean_path = [coord_key, 0] + [p.replace("#BAND#", str(band_id)) for p in definition["path_end"]]
+        self._attr_unique_id = f"sagemcom_{entry_id}_wifi_{device_id}_{band_label}_{definition['key']}"
+        self._attr_name = f"{band_label} {definition['name']}"
+        self._attr_icon = definition["icon"]
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{entry_id}_wifi_{device_id}")}, 
+            name=device_name, 
+            manufacturer="Sagemcom Network", 
+            via_device=(DOMAIN, entry_id)
+        )
+
+    @property
+    def native_value(self):
+        if not self.coordinator.data: 
+            return None
+            
+        val = safe_get(self.coordinator.data, self._clean_path)
+        
+        if val is True or str(val).lower() == "true": 
+            return "Enabled"
+        if val is False or str(val).lower() == "false": 
+            return "Disabled"
+            
+        return val
+
+
 class SagemcomClientSensor(CoordinatorEntity, SensorEntity):
-    """Spawns Connected Clients as independent devices linked to the Router."""
     def __init__(self, coordinator, entry_id, mac, hostname, metric_key, metric_name, icon, unit=None):
         super().__init__(coordinator)
         self._mac = mac
         self._metric_key = metric_key
-        
         self._attr_unique_id = f"sagemcom_client_{mac}_{metric_key}"
         self._attr_name = metric_name
         self._attr_icon = icon
         if unit:
             self._attr_native_unit_of_measurement = unit
-            
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, mac)},
             name=hostname,
@@ -436,18 +349,18 @@ class SagemcomClientSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        """Secure lookup evaluating dropping connections gracefully."""
-        if not self.coordinator.data:
+        if not self.coordinator.data: 
             return None
             
         clients = safe_get(self.coordinator.data, ["hosts", 0, "hosts", "list"], [])
+        
         for client in clients:
             if client.get("macaddress") == self._mac:
                 if self._metric_key == "status":
                     return "Connected" if client.get("active") else "Disconnected"
                     
                 if not client.get("active"):
-                    return "Disconnected" if self._metric_key == "speed" else None
+                    return None
                     
                 if self._metric_key == "ipaddress":
                     return client.get("ipaddress")
@@ -457,6 +370,6 @@ class SagemcomClientSensor(CoordinatorEntity, SensorEntity):
                     return safe_get(client, ["ethernet", "speed"]) or 0
                 if self._metric_key == "rssi":
                     rssi_val = safe_get(client, ["wireless", "rssi0"]) or client.get("rssi")
-                    return int(rssi_val) if rssi_val else None
+                    return int(rssi_val) if rssi_val else 0
                     
         return "Disconnected" if self._metric_key == "status" else None
