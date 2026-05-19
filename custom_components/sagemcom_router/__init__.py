@@ -18,6 +18,10 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor"]
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Sagemcom Router component (Legacy Hook)."""
+    return True
+
 # --- PURE PYTHON CRYPTO ENGINE ---
 def _pure_sha512_crypt(key: str, salt: str) -> str:
     """Pure python implementation of Unix SHA512 crypt."""
@@ -115,13 +119,19 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             "Connection": "keep-alive"
         }
         
+        # Newly mapped endpoints from the F@st 5866T config.js trace
         self.endpoints = {
+            "device": f"{self.base_url}/device",
             "network_type": f"{self.base_url}/cellular/network_type",
             "sim_status": f"{self.base_url}/cellular/interface/usim/status_extended",
             "provider": f"{self.base_url}/cellular/provider",
             "session": f"{self.base_url}/cellular/session",
             "wan": f"{self.base_url}/wan/status",
             "interface_5g": f"{self.base_url}/cellular/interface_5g",
+            "interface_4g": f"{self.base_url}/cellular/interface",
+            "lan_stats": f"{self.base_url}/lan/stats",
+            "wifi_24_stats": f"{self.base_url}/wireless/24/stats",
+            "wifi_5_stats": f"{self.base_url}/wireless/5/stats"
         }
 
     async def _async_login(self):
@@ -170,7 +180,6 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
             if login_resp.status not in [200, 201]:
                 raise UpdateFailed(f"Router rejected authentication: {login_resp.status}")
             
-            # The router provides a fresh authenticated BBOX_ID after login
             if "BBOX_ID" in login_resp.cookies:
                 final_bbox = login_resp.cookies["BBOX_ID"].value
                 cookie_parts = [c for c in cookie_parts if not c.startswith("BBOX_ID=")]
@@ -178,19 +187,6 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
 
             self._active_cookie = "; ".join(cookie_parts)
             self._logged_in = True
-
-    def _safe_get(self, data, *keys):
-        """Safely traverse complex JSON structures containing dicts and lists."""
-        for key in keys:
-            if isinstance(data, list) and len(data) > 0:
-                data = data[0]
-            if isinstance(data, dict):
-                data = data.get(key)
-            else:
-                return None
-            if data is None:
-                return None
-        return data
 
     async def _async_update_data(self):
         """Fetch data from API endpoints."""
@@ -205,32 +201,19 @@ class SagemcomDataCoordinator(DataUpdateCoordinator):
                 
                 async with self.session.get(url, headers=headers, skip_auto_headers={"Cookie"}) as response:
                     if response.status in [401, 403]:
-                        # Session dropped. Re-authenticate and retry transparently.
                         _LOGGER.info("Session expired. Re-authenticating...")
                         await self._async_login()
                         headers["Cookie"] = self._active_cookie
                         async with self.session.get(url, headers=headers, skip_auto_headers={"Cookie"}) as retry_resp:
                             retry_resp.raise_for_status()
-                            results[key] = await retry_resp.json()
+                            text = await retry_resp.text()
+                            results[key] = await retry_resp.json() if text else {}
                     else:
                         response.raise_for_status()
-                        results[key] = await response.json()
+                        text = await response.text()
+                        results[key] = await response.json() if text else {}
 
-            parsed_data = {}
-            parsed_data["network_type"] = self._safe_get(results["network_type"], "cellular", "network_type")
-            parsed_data["sim_status"] = self._safe_get(results["sim_status"], "cellular", "sim_status_extended")
-            parsed_data["provider"] = self._safe_get(results["provider"], "cellular", "provider")
-            parsed_data["wan_status"] = self._safe_get(results["wan"], "status")
-            parsed_data["rsrp"] = self._safe_get(results["interface_5g"], "cellular", "interfaces", "rsrp")
-
-            duration_sec = self._safe_get(results["session"], "cellular", "session", "duration")
-            if duration_sec is not None:
-                parsed_data["session_duration"] = round(int(duration_sec) / 3600, 2)
-                
-            parsed_data["data_received"] = self._safe_get(results["session"], "cellular", "session", "data", "received")
-            parsed_data["data_sent"] = self._safe_get(results["session"], "cellular", "session", "data", "sent")
-
-            return parsed_data
+            return results
 
         except Exception as err:
             self._logged_in = False
@@ -243,7 +226,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     username = entry.data.get("username")
     password = entry.data.get("password")
 
-    # Initialize the coordinator and command it to fetch the first batch of data
     coordinator = SagemcomDataCoordinator(hass, host, username, password)
     await coordinator.async_config_entry_first_refresh()
 
