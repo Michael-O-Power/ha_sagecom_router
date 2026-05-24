@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     UnitOfTime,
     UnitOfInformation,
-    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    UnitOfSignalStrength, # Updated from deprecated SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 )
 
 from .const import DOMAIN
@@ -71,19 +71,17 @@ SENSOR_TYPES = (
     {"key": "data_sent_gb", "name": "Data Sent", "path": ["session", 0, "cellular", "session", "data", "sent"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.GIGABYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:upload-network"},
     
     # --- 4G LTE TELEMETRY ---
-    {"key": "4g_rsrp", "name": "4G Signal Strength (RSRP)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "4g_rsrp", "name": "4G Signal Strength (RSRP)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": UnitOfSignalStrength.DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
     {"key": "4g_rsrq", "name": "4G Signal Quality (RSRQ)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "4g_sinr", "name": "4G Signal:Noise Ratio (SINR)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     
     # --- 5G TELEMETRY ---
-    {"key": "5g_rsrp", "name": "5G Signal Strength (RSRP)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "5g_rsrp", "name": "5G Signal Strength (RSRP)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": UnitOfSignalStrength.DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
     {"key": "5g_rsrq", "name": "5G Signal Quality (RSRQ)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "5g_sinr", "name": "5G Signal:Noise Ratio (SINR)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "5g_band", "name": "5G Band", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "bandinfo"], "icon": "mdi:radio-tower"},
 )
 
-# NOTE: 'packets' and 'errors' strictly avoid the DATA_SIZE device class to prevent Home Assistant ValueErrors.
-# Includes the new 'status' Connection Status sensor at the top.
 PORT_METRIC_DEFINITIONS = [
     {"key": "status", "suffix": "Connection Status", "icon": "mdi:ethernet-cable"},
     {"key": "curbitrate", "suffix": "Link Speed", "icon": "mdi:speedometer", "unit": "Mbps"},
@@ -103,7 +101,6 @@ PORT_METRIC_DEFINITIONS = [
     {"dir": "rx", "key": "broadcastpackets", "suffix": "Broadcast Packets Received", "icon": "mdi:bullhorn-variant", "unit": "packets"},
 ]
 
-# PRIMARY WI-FI includes hardware radio specifics
 WIFI_PRIMARY_DEFS = [
     {"key": "ssid", "name": "SSID Name", "icon": "mdi:wifi-marker", "path_end": ["wireless", "ssid", "#BAND#", "id"]},
     {"key": "passphrase", "name": "Passphrase", "icon": "mdi:key-variant", "path_end": ["wireless", "ssid", "#BAND#", "security", "passphrase"]},
@@ -114,7 +111,6 @@ WIFI_PRIMARY_DEFS = [
     {"key": "standard", "name": "Wireless Mode", "icon": "mdi:wifi-cog", "path_end": ["wireless", "radio", "standard"]},
 ]
 
-# GUEST WI-FI uses the flat 'guestX' path structure without deep folders
 WIFI_GUEST_DEFS = [
     {"key": "ssid", "name": "SSID Name", "icon": "mdi:wifi-marker", "path_end": ["guest#BAND#", "ssid"]},
     {"key": "passphrase", "name": "Passphrase", "icon": "mdi:key-variant", "path_end": ["guest#BAND#", "passphrase"]},
