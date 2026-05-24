@@ -8,6 +8,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
@@ -338,6 +339,7 @@ class SagemcomClientSensor(CoordinatorEntity, SensorEntity):
             self._attr_native_unit_of_measurement = unit
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, mac)},
+            connections={(dr.CONNECTION_NETWORK_MAC, dr.format_mac(mac))},
             name=hostname,
             manufacturer="Network Client",
             via_device=(DOMAIN, entry_id)
