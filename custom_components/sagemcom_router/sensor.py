@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     UnitOfTime,
     UnitOfInformation,
-    UnitOfSignalStrength, # Updated from deprecated SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
 )
 
 from .const import DOMAIN
@@ -71,12 +71,12 @@ SENSOR_TYPES = (
     {"key": "data_sent_gb", "name": "Data Sent", "path": ["session", 0, "cellular", "session", "data", "sent"], "device_class": SensorDeviceClass.DATA_SIZE, "native_unit_of_measurement": UnitOfInformation.GIGABYTES, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:upload-network"},
     
     # --- 4G LTE TELEMETRY ---
-    {"key": "4g_rsrp", "name": "4G Signal Strength (RSRP)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": UnitOfSignalStrength.DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "4g_rsrp", "name": "4G Signal Strength (RSRP)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
     {"key": "4g_rsrq", "name": "4G Signal Quality (RSRQ)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "4g_sinr", "name": "4G Signal:Noise Ratio (SINR)", "path": ["interface_4g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     
     # --- 5G TELEMETRY ---
-    {"key": "5g_rsrp", "name": "5G Signal Strength (RSRP)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": UnitOfSignalStrength.DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
+    {"key": "5g_rsrp", "name": "5G Signal Strength (RSRP)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrp"], "device_class": SensorDeviceClass.SIGNAL_STRENGTH, "native_unit_of_measurement": SIGNAL_STRENGTH_DECIBELS_MILLIWATT, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-3"},
     {"key": "5g_rsrq", "name": "5G Signal Quality (RSRQ)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "rsrq"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "5g_sinr", "name": "5G Signal:Noise Ratio (SINR)", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "connect_info", "sinr"], "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:signal-cellular-outline"},
     {"key": "5g_band", "name": "5G Band", "path": ["interface_5g", 0, "cellular", "interfaces", 0, "bandinfo"], "icon": "mdi:radio-tower"},
