@@ -49,7 +49,35 @@ If you prefer to install without HACS, you can do it via terminal/SSH.
 4. Enter the following details:
    * **Host:** The IP address of your modem (usually `192.168.1.1`)
    * **Username:** The login username (usually `admin`)
-   * **Password:** The exact password used to log into the modem's web interface. *(Note: If you use a password manager to log in via your browser, ensure you copy the exact string it is auto-filling).*
+   * **Password:** The exact password used to log into the modem's web interface.
 5. Click **Submit**.
 
 Once authenticated, your sensors will begin pulling data within 60 seconds!
+
+
+### Tracking Daily Data Usage
+
+This integration provides cumulative totals for data usage ( such as `sensor.sagemcom_[ip]_data_received_gb`). Because these sensors are configured with the `total_increasing` state class, you can easily track your daily, weekly, or monthly usage using Home Assistant's built-in **Utility Meter** helper.
+
+**To set this up via the UI:**
+1. Go to **Settings** > **Devices & Services** > **Helpers**.
+2. Click **+ Create Helper** and select **Utility Meter**.
+3. Name it (e.g., "Daily Downloaded Data").
+4. Select your Sagemcom's data received sensor as the **Input sensor**.
+5. Set the **Meter reset cycle** to **Daily**.
+6. Repeat for the upload sensor.
+
+**To set this up via YAML:**
+Add the following to your `configuration.yaml` (replace the IP with your router's actual entity ID):
+
+```yaml
+utility_meter:
+  sagemcom_daily_download:
+    source: sensor.sagemcom_192_168_1_1_data_received_gb
+    name: "Daily Mobile Data Downloaded"
+    cycle: daily
+    
+  sagemcom_daily_upload:
+    source: sensor.sagemcom_192_168_1_1_data_sent_gb
+    name: "Daily Mobile Data Uploaded"
+    cycle: daily
